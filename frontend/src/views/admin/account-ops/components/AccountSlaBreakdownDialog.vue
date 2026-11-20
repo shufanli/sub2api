@@ -103,10 +103,10 @@
                 <div>{{ formatNumber(row.request_count_total) }}</div>
                 <div class="text-xs text-gray-400">{{ t('admin.accountOps.breakdown.pvDetail', { ok: formatNumber(row.success_count), err: formatNumber(row.error_count_total) }) }}</div>
               </td>
-              <td class="text-right">{{ formatMs(row.ttft_p50_ms) }}</td>
-              <td class="text-right">{{ formatMs(row.ttft_p90_ms) }}</td>
-              <td class="text-right">{{ formatMs(row.duration_p50_ms) }}</td>
-              <td class="text-right">{{ formatMs(row.duration_p90_ms) }}</td>
+              <td class="text-right">{{ formatSeconds(row.ttft_p50_ms) }}</td>
+              <td class="text-right">{{ formatSeconds(row.ttft_p90_ms) }}</td>
+              <td class="text-right">{{ formatSeconds(row.duration_p50_ms) }}</td>
+              <td class="text-right">{{ formatSeconds(row.duration_p90_ms) }}</td>
               <td class="text-right" data-testid="account-cache-rate">{{ formatPercent(cacheRate(row)) }}</td>
               <td class="text-right">
                 <div>{{ formatNumber(row.token_consumed) }}</div>
@@ -147,7 +147,7 @@ const emit = defineEmits<{
   (e: 'select-account', accountId: number): void
 }>()
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const uid = `account-sla-${useId()}`
 const titleId = `${uid}-title`
 const captionId = `${uid}-caption`
@@ -235,8 +235,19 @@ function slaClass(value: number | null): string {
   return value >= 0.99 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'
 }
 
-function formatMs(value: number | null): string {
-  return typeof value === 'number' ? `${formatNumber(value)} ms` : '-'
+// Latencies come from the API in ms; show seconds with a fixed two decimals so a column
+// lines up. The unit style renders it in the app's selected language ("64.00s", "64.00秒")
+// and follows a runtime language switch.
+const secondsFormat = computed(() => new Intl.NumberFormat(locale.value, {
+  style: 'unit',
+  unit: 'second',
+  unitDisplay: 'narrow',
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2
+}))
+
+function formatSeconds(ms: number | null): string {
+  return typeof ms === 'number' ? secondsFormat.value.format(ms / 1000) : '-'
 }
 
 async function load() {

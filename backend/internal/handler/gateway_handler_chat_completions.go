@@ -158,6 +158,7 @@ func (h *GatewayHandler) ChatCompletions(c *gin.Context) {
 	sessionHash := h.gatewayService.GenerateSessionHash(parsedReq)
 	groupPlatform := effectiveAPIKeyPlatform(c, apiKey)
 	selectionSessionHash := chatCompletionsSelectionSessionHash(groupPlatform, sessionHash, service.GeminiRequestSessionID(c))
+	sellRange := installSellRateRange(c, apiKey)
 	// 3. Account selection + failover loop
 	fs := NewFailoverState(h.maxAccountSwitches, false)
 	if groupPlatform == service.PlatformGemini {
@@ -170,6 +171,15 @@ func (h *GatewayHandler) ChatCompletions(c *gin.Context) {
 		}
 		selection, err := h.gatewayService.SelectAccountWithLoadAwareness(c.Request.Context(), apiKey.GroupID, selectionSessionHash, reqModel, fs.FailedAccountIDs, "", int64(0))
 		if err != nil {
+			if len(fs.FailedAccountIDs) == 0 && sellRange.Rejected() {
+				// Only a cap that leaves no account for this model is a price
+				// verdict; an in-range account that is merely busy or rate
+				// limited falls through to the normal capacity errors.
+				if lowest, found, covered := h.gatewayService.SellRateRangeCoverage(c.Request.Context(), apiKey.GroupID, reqModel, sellRange); !covered {
+					h.chatCompletionsErrorResponse(c, http.StatusConflict, service.SellRateOutOfRangeCode, service.SellRateOutOfRangeMessage(lowest, found))
+					return
+				}
+			}
 			if len(fs.FailedAccountIDs) == 0 {
 				cls := classifyNoAccountErrorFromGin(c, h.gatewayService, apiKey, reqModel, reqModel, groupPlatform)
 				cls = classifySelectionFailureError(err, cls)
@@ -199,6 +209,9 @@ func (h *GatewayHandler) ChatCompletions(c *gin.Context) {
 				return
 			}
 		}
+		selection = preferAccountWithFreeSlot(c.Request.Context(), selection, fs.FailedAccountIDs, func(excluded map[int64]struct{}) (*service.AccountSelectionResult, error) {
+			return h.gatewayService.SelectAccountWithLoadAwareness(c.Request.Context(), apiKey.GroupID, selectionSessionHash, reqModel, excluded, "", int64(0))
+		})
 		account := selection.Account
 		setOpsSelectedServiceAccount(c, account)
 

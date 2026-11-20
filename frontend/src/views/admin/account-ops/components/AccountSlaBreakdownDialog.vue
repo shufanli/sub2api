@@ -235,11 +235,18 @@ function slaClass(value: number | null): string {
   return value >= 0.99 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'
 }
 
-// Latencies come from the API in ms; show seconds with a fixed two decimals so a column lines up.
-const secondsFormat = new Intl.NumberFormat(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+// Latencies come from the API in ms; show seconds with a fixed two decimals so a column
+// lines up. The unit style lets the locale render it ("64.00s", "64.00秒").
+const secondsFormat = new Intl.NumberFormat(undefined, {
+  style: 'unit',
+  unit: 'second',
+  unitDisplay: 'narrow',
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2
+})
 
 function formatSeconds(ms: number | null): string {
-  return typeof ms === 'number' ? `${secondsFormat.format(ms / 1000)} s` : '-'
+  return typeof ms === 'number' ? secondsFormat.format(ms / 1000) : '-'
 }
 
 async function load() {

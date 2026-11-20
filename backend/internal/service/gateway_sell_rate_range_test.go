@@ -61,7 +61,6 @@ func sellRangeTestContext(group *Group, r *SellRateRange) context.Context {
 	return WithSellRateRange(ctx, r)
 }
 
-
 func TestParseSellRateRange(t *testing.T) {
 	require.Nil(t, ParseSellRateRange("", ""))
 	require.Nil(t, ParseSellRateRange("abc", "-1"))
